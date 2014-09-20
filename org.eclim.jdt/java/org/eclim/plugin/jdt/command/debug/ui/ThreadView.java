@@ -17,6 +17,7 @@
 package org.eclim.plugin.jdt.command.debug.ui;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +52,10 @@ public class ThreadView
     ViewUtils.LEAF_NODE_INDENT +
     ViewUtils.LEAF_NODE_INDENT;
 
-  private List<String> results = new ArrayList<String>();
+  private List<Map<String,Object>> results =
+    new ArrayList<Map<String,Object>>();
 
-  public synchronized List<String> get(
+  public synchronized List<Map<String,Object>> get(
       Map<Long, IThread> threadMap,
       Map<Long, IStackFrame[]> stackFrameMap)
     throws DebugException
@@ -89,9 +91,10 @@ public class ThreadView
         status = RUNNING;
       }
 
-      results.add(prefix + "Thread-" + threadName +
-          ":" + threadId  +
-          " (" + status  + ")");
+      Map<String,Object> result = new HashMap<String,Object>();
+      result.put("display", prefix + "Thread-" + threadName + ":" + threadId);
+      result.put("status", status);
+      results.add(result);
 
       IStackFrame[] stackFrames = stackFrameMap.get(threadId);
       if (stackFrames != null) {
@@ -103,7 +106,9 @@ public class ThreadView
         // target itself, but this is being defensive.
         try {
           for (IStackFrame stackFrame : stackFrames) {
-            results.add(getStackFrameText(stackFrame));
+            result = new HashMap<String,Object>();
+            result.put("display", getStackFrameText(stackFrame));
+            results.add(result);
           }
         } catch (DebugException e) {}
       }
@@ -116,8 +121,8 @@ public class ThreadView
     StringBuilder result = new StringBuilder();
     result.append(STACK_FRAME_PREFIX);
 
-    IJavaStackFrame frame = (IJavaStackFrame) stackFrame.getAdapter(
-        IJavaStackFrame.class);
+    IJavaStackFrame frame = (IJavaStackFrame)
+      stackFrame.getAdapter(IJavaStackFrame.class);
     if (frame != null) {
       String dec = frame.getDeclaringTypeName();
 

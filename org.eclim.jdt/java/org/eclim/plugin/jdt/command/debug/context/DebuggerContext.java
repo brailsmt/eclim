@@ -219,9 +219,10 @@ public class DebuggerContext
     throws DebugException
   {
     Map<String, Object> statusMap = new HashMap<String, Object>();
-
-    statusMap.put("state", ViewUtils.EXPANDED_NODE_SYMBOL + getId() +
-        " (" + state.getName() + ")");
+    Map<String, Object> stateMap = new HashMap<String, Object>();
+    stateMap.put("display", ViewUtils.EXPANDED_NODE_SYMBOL + getId());
+    stateMap.put("value", state.getName());
+    statusMap.put("state", stateMap);
     statusMap.put("threads", getThreadContext().get());
     statusMap.put("variables", getVariableContext().get());
 

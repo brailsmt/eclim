@@ -88,7 +88,7 @@ public class ThreadContext
     return threadMap.get(threadId);
   }
 
-  public synchronized List<String> get()
+  public synchronized List<Map<String,Object>> get()
     throws DebugException
   {
     return threadView.get(threadMap, stackFrameMap);
@@ -97,8 +97,7 @@ public class ThreadContext
   public synchronized void update(IThread thread, IStackFrame[] stackFrames)
     throws DebugException
   {
-
-    long threadId = ((IJavaThread) thread).getThreadObject().getUniqueId();
+    long threadId = ((IJavaThread)thread).getThreadObject().getUniqueId();
     threadMap.put(threadId, thread);
     if (stackFrames != null) {
       stackFrameMap.put(threadId, stackFrames);

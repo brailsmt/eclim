@@ -113,6 +113,27 @@ function! eclim#java#debug#DefineThreadWinCommands() " {{{
     command -nargs=0 -buffer JavaDebugThreadSuspend
       \ :call eclim#java#debug#DebugThreadSuspend()
   endif
+
+  hi link RefactorLink Label
+  syntax match RefactorLink /|\S.\{-}\S|/
+  nnoremap <silent> <buffer> <cr> :call eclim#java#debug#ThreadLink()<cr>
+endfunction " }}}
+
+function! eclim#java#debug#ThreadLink() " {{{
+  let line = getline('.')
+  let link = substitute(
+    \ getline('.'), '.*|\(.\{-}\%' . col('.') . 'c.\{-}\)|.*', '\1', '')
+  if link == line
+    return
+  endif
+
+  if link == 'Connected'
+    call eclim#java#debug#DebugStop()
+  elseif link == 'Running'
+    call eclim#java#debug#DebugThreadSuspend()
+  elseif link == 'Suspended'
+    call eclim#java#debug#DebugThreadResume()
+  endif
 endfunction " }}}
 
 function! eclim#java#debug#DefineVariableWinCommands() " {{{
@@ -219,7 +240,7 @@ function! eclim#java#debug#DebugThreadResume() " {{{
   let thread_id = eclim#java#debug#GetThreadIdUnderCursor()
   " Even if thread_id is empty, invoke resume. If there is atleast one
   " suspended thread, then the server could resume that. If not, it will
-  " reurn a message.
+  " return a message.
   let command = s:command_thread_resume
   let command = substitute(command, '<thread_id>', thread_id, '')
 
@@ -393,28 +414,25 @@ function! eclim#java#debug#Status() " {{{
     return
   endif
 
+  let state = []
   if has_key(results, 'state')
     let state = [results.state]
-  else
-    let state = []
   endif
 
+  let threads = []
   if has_key(results, 'threads')
     let threads = results.threads
-  else
-    let threads = []
   endif
 
+  let vars = []
   if has_key(results, 'variables')
     let vars = results.variables
-  else
-    let vars = []
   endif
 
-  call eclim#java#debug#CreateStatusWindow(state + threads, vars)
+  call eclim#java#debug#CreateStatusWindow(state, threads, vars)
 endfunction " }}}
 
-function! eclim#java#debug#CreateStatusWindow(threads, vars) " {{{
+function! eclim#java#debug#CreateStatusWindow(state, threads, vars) " {{{
   " Creates the debug status windows if they do not already exist.
   " The newly created windows are initialized with given content.
 
@@ -424,10 +442,25 @@ function! eclim#java#debug#CreateStatusWindow(threads, vars) " {{{
   let cur_line = line('.')
   let cur_col = col('.')
 
-  let thread_win_opts = {'orientation': 'horizontal'}
+  let threads_win_opts = {'orientation': 'horizontal'}
+  let threads_display = []
+  for state in a:state
+    if state.value == 'Disconnected'
+      call add(threads_display, state.display . ' (' . state.value . ')')
+    else
+      call add(threads_display, state.display . ' |' . state.value . '|')
+    endif
+  endfor
+  for thread in a:threads
+    let display = thread.display
+    if has_key(thread, 'status')
+      let display .= ' |' . thread.status . '|'
+    endif
+    call add(threads_display, display)
+  endfor
+
   call eclim#util#TempWindow(
-    \ s:thread_win_name, a:threads,
-    \ thread_win_opts)
+    \ s:thread_win_name, threads_display, threads_win_opts)
 
   setlocal foldmethod=expr
   setlocal foldexpr=eclim#display#fold#GetTreeFold(v:lnum)
@@ -436,16 +469,17 @@ function! eclim#java#debug#CreateStatusWindow(threads, vars) " {{{
   setlocal foldlevel=5
   " Avoid the ugly - symbol on folded lines
   setlocal fillchars="fold:\ "
-  setlocal nonu
+  setlocal nonumber
+
   call eclim#java#debug#DefineStatusWinCommands()
   call eclim#java#debug#DefineThreadWinCommands()
 
-  let var_win_opts = {'orientation': g:EclimJavaDebugStatusWinOrientation,
+  let var_win_opts = {
+    \ 'orientation': g:EclimJavaDebugStatusWinOrientation,
     \ 'width': g:EclimJavaDebugStatusWinWidth,
-    \ 'height': g:EclimJavaDebugStatusWinHeight}
-  call eclim#util#TempWindow(
-    \ s:variable_win_name, a:vars,
-    \ var_win_opts)
+    \ 'height': g:EclimJavaDebugStatusWinHeight,
+  \ }
+  call eclim#util#TempWindow(s:variable_win_name, a:vars, var_win_opts)
 
   setlocal foldmethod=expr
   setlocal foldexpr=eclim#display#fold#GetTreeFold(v:lnum)
@@ -562,13 +596,10 @@ function! eclim#java#debug#GetThreadIdUnderCursor() " {{{
     return ""
   endif
 
-  let line_arr = split(getline("."), '(')
-  if (len(line_arr) > 1)
-    let thread_info_arr = split(line_arr[0], ':')
-    if (len(thread_info_arr) == 2)
-      " trim any white space before returning the thread id
-      return substitute(thread_info_arr[1], "^\\s\\+\\|\\s\\+$","","g")
-    endif
+  let line = getline('.')
+  let pattern = '.*:\(\d\+\)\s\+.*'
+  if line =~ pattern
+    return substitute(line, pattern, '\1', '')
   endif
 
   " Did not find a valid thread id
