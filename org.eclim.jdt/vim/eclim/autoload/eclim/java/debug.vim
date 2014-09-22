@@ -114,26 +114,19 @@ function! eclim#java#debug#DefineThreadWinCommands() " {{{
       \ :call eclim#java#debug#DebugThreadSuspend()
   endif
 
-  hi link RefactorLink Label
-  syntax match RefactorLink /|\S.\{-}\S|/
-  nnoremap <silent> <buffer> <cr> :call eclim#java#debug#ThreadLink()<cr>
-endfunction " }}}
+  nnoremap <silent> <buffer> s :call eclim#java#debug#DebugThreadSuspend()<cr>
+  nnoremap <silent> <buffer> S :call eclim#java#debug#DebugThreadSuspendAll()<cr>
+  nnoremap <silent> <buffer> r :call eclim#java#debug#DebugThreadResume()<cr>
+  nnoremap <silent> <buffer> R :call eclim#java#debug#DebugThreadResumeAll()<cr>
 
-function! eclim#java#debug#ThreadLink() " {{{
-  let line = getline('.')
-  let link = substitute(
-    \ getline('.'), '.*|\(.\{-}\%' . col('.') . 'c.\{-}\)|.*', '\1', '')
-  if link == line
-    return
-  endif
-
-  if link == 'Connected'
-    call eclim#java#debug#DebugStop()
-  elseif link == 'Running'
-    call eclim#java#debug#DebugThreadSuspend()
-  elseif link == 'Suspended'
-    call eclim#java#debug#DebugThreadResume()
-  endif
+  nnoremap <buffer> <silent> ? :call eclim#help#BufferHelp(
+    \ [
+      \ 's - suspend the thread under the cursor',
+      \ 'S - suspend all threads',
+      \ 'r - resume the thread under the cursor',
+      \ 'R - resume all threads',
+    \ ],
+    \ 'vertical', 40)<cr>
 endfunction " }}}
 
 function! eclim#java#debug#DefineVariableWinCommands() " {{{
@@ -445,19 +438,16 @@ function! eclim#java#debug#CreateStatusWindow(state, threads, vars) " {{{
   let threads_win_opts = {'orientation': 'horizontal'}
   let threads_display = []
   for state in a:state
-    if state.value == 'Disconnected'
-      call add(threads_display, state.display . ' (' . state.value . ')')
-    else
-      call add(threads_display, state.display . ' |' . state.value . '|')
-    endif
+    call add(threads_display, state.display . ' (' . state.value . ')')
   endfor
   for thread in a:threads
     let display = thread.display
     if has_key(thread, 'status')
-      let display .= ' |' . thread.status . '|'
+      let display .= ' (' . thread.status . ')'
     endif
     call add(threads_display, display)
   endfor
+  let threads_display += ['', '" use ? to toggle the help window']
 
   call eclim#util#TempWindow(
     \ s:thread_win_name, threads_display, threads_win_opts)
